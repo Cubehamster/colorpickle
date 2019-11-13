@@ -7,22 +7,25 @@ public class Player : MonoBehaviour
     public AudioClip charging;
     public AudioClip explosion;
 
+    public AudioSource chargeSource;
+    public AudioSource explosionSource;
+
     private Texture2D visual;
     private float currentScale;
 
     private Vector2 position;
     public Vector2 RenderPosition => position;
-    public float Radius => visual.width * currentScale * .5f;
+    public float Radius => visual.width * displayScale * .5f;
 
     public bool Dead { get; private set; } = true;
     public bool Exploding { get; private set; } = false;
 
-    public float startScale = .001f;
-    public float scaleIncreasePerSecond = .005f;
+    private float startScale = 0.001f;
+    private float scaleIncreasePerSecond = 0.011f;
     private float newScale = 1f;
 
-    public float explosionScale = 1.0f;
-    public float pointsScaleMultiplier = 1.0f;
+    private float explosionScale = 3f;
+    private float pointsScaleMultiplier = 1.0f;
 
     private int score;
     private float multiplier;
@@ -33,11 +36,15 @@ public class Player : MonoBehaviour
     private bool explosionPlayOnce = false;
 
     private bool startingUp = false;
-    public float startupScaleIncreaseMultiplier = 0.024f;
+    private float startupScaleIncreaseMultiplier = 0.009f;
 
-    public float sineAmplitude;
-    public float sineFrequency = 1.2f;
+    private float sineAmplitude;
+    private float sineFrequency = 1.2f;
     private float sineOffset;
+    private float displayScale;
+
+    private float timer;
+    private float timeoffset;
 
     // Use this for initialization       
     void Awake ()
@@ -48,7 +55,9 @@ public class Player : MonoBehaviour
     private void Start()
     {
         currentScale = startScale;
-        GetComponent<AudioSource>().playOnAwake = false;
+        displayScale = startScale;
+        chargeSource.playOnAwake = false;
+        explosionSource.playOnAwake = false;        
     }
 
     private void OnGUI()
@@ -57,7 +66,7 @@ public class Player : MonoBehaviour
         {
             GUI.DrawTexture(new Rect(RenderPosition.x - Radius, RenderPosition.y - Radius, Radius * 2, Radius * 2), visual);
             GUI.skin.label.fontSize = 60;
-            GUI.Label(new Rect(20, 52, 200, 200), $" {multiplier}x");
+            GUI.Label(new Rect(20, 52, 200, 200), $"{multiplier}x");
         }
         else
         {
@@ -77,16 +86,18 @@ public class Player : MonoBehaviour
     {
         yield return new WaitForSeconds(0.08f);
         Exploding = true;
+
         multiplierBeforeDeath = multiplier;
-        scaleFactor = currentScale / startScale;
-        float beginScale = currentScale;
-        float targetScale = currentScale * Mathf.Pow(scaleFactor,0.8f) * explosionScale;
+
+        float beginScale = displayScale;
+        float targetScale = displayScale * explosionScale;
+        
         float p = .0f;
 
         while(p < 1.0f)
         {
             p += Time.deltaTime * 5.0f;
-            currentScale = Mathf.Lerp(beginScale, targetScale, p);
+            displayScale = Mathf.Lerp(beginScale, targetScale, p);
 
             yield return 0;
         }
@@ -96,32 +107,40 @@ public class Player : MonoBehaviour
         score += Mathf.RoundToInt(hits * multiplierBeforeDeath);
 
         Exploding = false;
+        currentScale = startScale;
+        displayScale = startScale;
     }
 
     private void SineOffset()
     {
-        sineOffset = sineAmplitude * Mathf.Sin((Time.time * sineFrequency) * 2.0f * Mathf.PI);
+        sineAmplitude = 0.075f * Mathf.Pow(currentScale,0.8f);
+        sineFrequency = Mathf.Pow(1.48f, -0.23f * (timer - 1.74f));
+        sineOffset = sineAmplitude * Mathf.Sin((timer - 1.74f) / sineFrequency * 1.0f * Mathf.PI);
     }
 
     public void Die()
     {
         Dead = true;
     }
+    
 
     // Update is called once per frame
     void Update ()
     {
+        timer = Time.time - timeoffset;
+
         SineOffset();
-        Debug.Log(sineOffset);
 
         if (Exploding) return;
 
         if (Input.GetMouseButtonDown(0))
         {
+
             if (playOnce)
             {
-                GetComponent<AudioSource>().clip = charging;
-                GetComponent<AudioSource>().Play();
+                timeoffset = Time.time;
+                chargeSource.clip = charging;
+                chargeSource.Play();
                 currentScale = startScale;
                 StartCoroutine(Startup());
                 playOnce = false;
@@ -139,11 +158,13 @@ public class Player : MonoBehaviour
         {
             if (startingUp)
             {
-                currentScale += scaleIncreasePerSecond * startupScaleIncreaseMultiplier * Mathf.Pow(Time.deltaTime, 0.4f);
+                currentScale = startupScaleIncreaseMultiplier * Mathf.Pow(2.718f, timer);
+                displayScale = currentScale;
             }
             else
             {
-                currentScale += scaleIncreasePerSecond * Mathf.Pow(Time.deltaTime, 0.89f) + sineOffset;
+                currentScale += scaleIncreasePerSecond * Mathf.Pow(Time.deltaTime, 0.87f);
+                displayScale = currentScale + sineOffset;
             }
 
 
@@ -160,21 +181,22 @@ public class Player : MonoBehaviour
             playOnce = true;
             if (explosionPlayOnce)
             {
-                GetComponent<AudioSource>().Stop();
+                chargeSource.Stop();
                 explosionPlayOnce = false;
-                GetComponent<AudioSource>().clip = explosion;
-                GetComponent<AudioSource>().Play();
+                explosionSource.clip = explosion;
+                explosionSource.Play();
 
             }
         }
-        multiplier = Mathf.Round(Mathf.Pow(currentScale/newScale, 2.74f) * pointsScaleMultiplier);
+        //multiplier = Mathf.Round(Mathf.Pow(currentScale / newScale, 2.74f) * pointsScaleMultiplier);
+        multiplier = Mathf.Floor(-1f + Mathf.Pow(2.97039f, 0.14899f * (timer)) * 2.4f - 1.3f);
     }
 
     IEnumerator Startup()
     {
-        yield return new WaitForSeconds(0.19f);
+        yield return new WaitForSeconds(0.24f);
         startingUp = true;
-        yield return new WaitForSeconds(1.67f);
+        yield return new WaitForSeconds(1.62f);
         newScale = currentScale;
         startingUp = false;
     }

@@ -11,7 +11,7 @@ public class Enemy : MonoBehaviour
     public float Speed { get; set; }
 
     public Vector2 RenderPosition => position;
-    public float Radius => 25.0f * scale;
+    public float Radius => 24.0f * scale;
 
     private float scale = 1.0f;
 
